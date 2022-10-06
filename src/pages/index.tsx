@@ -3,14 +3,23 @@ import { HomeContainer, Product } from "../styles/pages/home"
 
 import { useKeenSlider } from "keen-slider/react"
 
-import camiseta1 from '../assets/camisetas/1.png'
-import camiseta2 from '../assets/camisetas/2.png'
-import camiseta3 from '../assets/camisetas/3.png'
-
 import 'keen-slider/keen-slider.min.css'
 
+import { stripe } from "../lib/stripe"
+import { GetStaticProps } from "next"
+import Stripe from "stripe"
 
-export default function Home() {
+interface HomeProps {
+  products: {
+    id: string;
+    name: string;
+    imageUrl: string;
+    price: number;
+  }[]
+}
+
+
+export default function Home({ products }: HomeProps) {
   const [sliderRef] = useKeenSlider({
     slides: {
       perView: 3,
@@ -20,41 +29,45 @@ export default function Home() {
 
   return (
     <HomeContainer ref={sliderRef} className='keen-slider'>
-      <Product className="keen-slider__slide">
-        <Image src={camiseta1} alt='' width={520} height={480}/>
+      {products.map(product => {
+        return (
+          <Product key={product.id} className="keen-slider__slide">
+            <Image src={product.imageUrl} alt='' width={520} height={480} />
 
-        <footer>
-          <strong>Camiseta X</strong>
-          <span>R$ 79,90</span>
-        </footer>
-      </Product>
-
-      <Product className="keen-slider__slide">
-        <Image src={camiseta2} alt='' width={520} height={480}/>
-
-        <footer>
-          <strong>Camiseta X</strong>
-          <span>R$ 79,90</span>
-        </footer>
-      </Product>
-
-      <Product className="keen-slider__slide">
-        <Image src={camiseta3} alt='' width={520} height={480}/>
-
-        <footer>
-          <strong>Camiseta X</strong>
-          <span>R$ 79,90</span>
-        </footer>
-      </Product>
-      
-      <Product className="keen-slider__slide">
-        <Image src={camiseta3} alt='' width={520} height={480}/>
-
-        <footer>
-          <strong>Camiseta X</strong>
-          <span>R$ 79,90</span>
-        </footer>
-      </Product>
+            <footer>
+              <strong>{product.name}</strong>
+              <span>{product.price}</span>
+            </footer>
+          </Product>
+        )
+      })}
     </HomeContainer>
   )
+}
+
+export const getStaticProps: GetStaticProps = async () => { // getServerSideProps
+  const response = await stripe.products.list({
+    expand: ['data.default_price']
+  })
+
+  const products = response.data.map(item => {
+    const price = item.default_price as Stripe.Price
+
+    return {
+      id: item.id,
+      name: item.name,
+      imageUrl: item.images[0],
+      price: new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      }).format(price.unit_amount / 100),
+    }
+  })
+
+  return {
+    props: {
+      products
+    },
+    revalidate: 60 * 60 * 2 // 2 horas
+  }
 }
